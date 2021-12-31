@@ -1,8 +1,67 @@
-use serde_json::{from_str, Result as JsonResult, Value as JsonValue};
+use clap::{App, Arg, SubCommand};
+use git2::{BranchType, Repository};
+use serde_json::{from_str, Value as JsonValue};
 use std::{fs, str::FromStr};
 
 fn main() {
-    let package_lock = load_package_lock();
+    let matches = App::new("Versioning Tool")
+        .version("1.0")
+        .author("Robert Herber <rwherber@gmail.com>")
+        .about("Versions various projects")
+        .arg(
+            Arg::with_name("path")
+                .short("p")
+                .long("path")
+                .help("The path to the project file with the version")
+                .value_name("FILE")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let repo = match Repository::open(".") {
+        Ok(repo) => repo,
+        Err(e) => panic!("Failed to open repo: {}", e),
+    };
+
+    let mut revwalk = repo.revwalk().unwrap();
+
+    revwalk.push_head().unwrap();
+
+    let revwalk = revwalk.filter_map(|id| {
+        let id = match id {
+            Ok(i) => i,
+            Err(_) => return None,
+        };
+        let commit = match repo.find_commit(id) {
+            Ok(c) => c,
+            Err(_) => return None,
+        };
+
+        return Some(commit);
+    });
+
+    for commit in revwalk {
+        println!("{}", commit.message().unwrap());
+    }
+
+    let branches = repo.branches(Some(BranchType::Local)).unwrap();
+
+    for branch in branches {
+        match branch {
+            Ok((b, t)) => {
+                println!("{} {:?}", b.name().unwrap().unwrap(), t);
+            }
+            Err(e) => {
+                continue;
+            }
+        }
+    }
+
+    let default_path = format!("{}/package.json", env!("CARGO_MANIFEST_DIR"));
+
+    let file_path = matches.value_of("path").unwrap_or(&default_path);
+    println!("{}", file_path);
+    let package_lock = load_package_lock(file_path);
 
     let data: JsonValue = from_str(&package_lock).unwrap();
 
@@ -11,8 +70,7 @@ fn main() {
     // println!("{}", version);
 }
 
-fn load_package_lock() -> String {
-    let path = format!("{}/package.json", env!("CARGO_MANIFEST_DIR"));
+fn load_package_lock(path: &str) -> String {
     fs::read_to_string(path).unwrap()
 }
 

@@ -3,7 +3,7 @@ use git2::{BranchType, Repository};
 use serde_json::{from_str, Value as JsonValue};
 use std::{fs, str::FromStr};
 
-//fart
+//fart remove
 
 fn main() {
     let matches = App::new("Versioning Tool")

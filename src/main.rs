@@ -3,6 +3,8 @@ use git2::{BranchType, Repository};
 use serde_json::{from_str, Value as JsonValue};
 use std::{fs, str::FromStr};
 
+//fart
+
 fn main() {
     let matches = App::new("Versioning Tool")
         .version("1.0")
@@ -28,14 +30,8 @@ fn main() {
     revwalk.push_head().unwrap();
 
     let revwalk = revwalk.filter_map(|id| {
-        let id = match id {
-            Ok(i) => i,
-            Err(_) => return None,
-        };
-        let commit = match repo.find_commit(id) {
-            Ok(c) => c,
-            Err(_) => return None,
-        };
+        let id = id.ok()?;
+        let commit = repo.find_commit(id).ok()?;
 
         return Some(commit);
     });

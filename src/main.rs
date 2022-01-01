@@ -1,9 +1,11 @@
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg};
 use git2::{BranchType, Repository};
-use serde_json::{from_str, Value as JsonValue};
-use std::{fs, str::FromStr};
-
-//fart remove
+use serde_json::{from_str, to_string_pretty, to_value, Value as JsonValue};
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    fs,
+    str::FromStr,
+};
 
 fn main() {
     let matches = App::new("Versioning Tool")
@@ -25,6 +27,28 @@ fn main() {
         Err(e) => panic!("Failed to open repo: {}", e),
     };
 
+    let mut secs = 0;
+
+    //let date = DateTime::
+
+    // Get last tag
+    let tags = repo.tag_names(Some("*")).unwrap();
+
+    let last_tag = tags.iter().filter_map(|x| x).last();
+
+    let last_tag_name = last_tag.unwrap();
+    let obj = repo.revparse_single(last_tag_name).unwrap();
+
+    if let Some(tag) = obj.as_tag() {
+        dbg!(tag);
+    } else if let Some(tag_commit) = obj.as_commit() {
+        let commit = repo.find_commit(tag_commit.id()).unwrap();
+        secs = commit.time().seconds();
+        dbg!(commit);
+    } else {
+        dbg!(&obj);
+    }
+
     let mut revwalk = repo.revwalk().unwrap();
 
     revwalk.push_head().unwrap();
@@ -37,8 +61,22 @@ fn main() {
     });
 
     for commit in revwalk {
-        println!("{}", commit.message().unwrap());
+        if commit.time().seconds() >= secs {
+            println!(
+                "On or after last tag: {:?} {}",
+                commit.time(),
+                commit.message().unwrap()
+            );
+        } else {
+            println!(
+                "Before last tag: {:?} {}",
+                commit.time(),
+                commit.message().unwrap()
+            );
+        }
     }
+
+    //fartaaaaa
 
     let branches = repo.branches(Some(BranchType::Local)).unwrap();
 
@@ -48,6 +86,7 @@ fn main() {
                 println!("{} {:?}", b.name().unwrap().unwrap(), t);
             }
             Err(e) => {
+                println!("{}", e);
                 continue;
             }
         }
@@ -59,11 +98,16 @@ fn main() {
     println!("{}", file_path);
     let package_lock = load_package_lock(file_path);
 
-    let data: JsonValue = from_str(&package_lock).unwrap();
+    let mut data: JsonValue = from_str(&package_lock).unwrap();
 
-    let version = Version::from_str(data["version"].as_str().unwrap()).unwrap();
-    dbg!(version);
-    // println!("{}", version);
+    let mut version = Version::from_str(data["version"].as_str().unwrap()).unwrap();
+    dbg!(&version);
+    version.patch += 1;
+
+    data["version"] = to_value(version.to_string()).unwrap();
+    dbg!(&data);
+    let json_string = to_string_pretty(&data).unwrap();
+    fs::write(file_path, json_string).expect("Unable to write file.");
 }
 
 fn load_package_lock(path: &str) -> String {
@@ -75,6 +119,17 @@ struct Version {
     major: u32,
     minor: u32,
     patch: u32,
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        let Version {
+            major,
+            minor,
+            patch,
+        } = self;
+        write!(f, "{}.{}.{}", major, minor, patch)
+    }
 }
 
 impl FromStr for Version {

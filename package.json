@@ -1,3 +1,4 @@
 {
-  "version": "1.0.0"
+  "foo": "bar",
+  "version": "1.0.13"
 }

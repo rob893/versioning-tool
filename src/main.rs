@@ -1,11 +1,15 @@
 use clap::{App, Arg};
+use git2::Commit;
 use git2::Oid;
 use git2::{BranchType, Repository};
 use serde_json::{from_str, to_string_pretty, to_value, Value as JsonValue};
 use std::{fs, str::FromStr};
 use version::Version;
+use version_calculator::calculate_version_type;
 
 mod version;
+mod version_calculator;
+mod version_type;
 
 fn main() {
     let matches = App::new("Versioning Tool")
@@ -80,21 +84,38 @@ fn main() {
         return Some(commit);
     });
 
-    for commit in revwalk {
-        if commit.time().seconds() >= secs {
-            println!(
-                "On or after last tag: {:?} {}",
-                commit.time(),
-                commit.message().unwrap()
-            );
-        } else {
-            println!(
-                "Before last tag: {:?} {}",
-                commit.time(),
-                commit.message().unwrap()
-            );
-        }
-    }
+    let commit_messages: Vec<String> = revwalk
+        .filter_map(|commit: Commit| {
+            if commit.time().seconds() >= secs {
+                if let Some(message) = commit.message() {
+                    Some(message.to_owned())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let version_type = calculate_version_type(&commit_messages);
+    dbg!(version_type);
+
+    // for commit in revwalk {
+    //     if commit.time().seconds() >= secs {
+    //         println!(
+    //             "On or after last tag: {:?} {}",
+    //             commit.time(),
+    //             commit.message().unwrap()
+    //         );
+    //     } else {
+    //         println!(
+    //             "Before last tag: {:?} {}",
+    //             commit.time(),
+    //             commit.message().unwrap()
+    //         );
+    //     }
+    // }
 
     let branches = repo.branches(Some(BranchType::Local)).unwrap();
 
